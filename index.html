@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Ambassador Drop Simulator - Enhanced</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        button { padding: 10px 20px; font-size: 16px; margin-right: 10px; }
+        #results, #stats { margin-top: 20px; }
+        .doubled { color: green; font-weight: bold; }
+        .rare { color: purple; font-weight: bold; }
+        #dropHistory { max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-top: 20px; }
+        #lootValue { font-size: 18px; font-weight: bold; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>The Ambassador Drop Simulator - Enhanced</h1>
+    <button id="simulateBtn">Simulate Kill</button>
+    <button id="simulateMultipleBtn">Simulate 1000 Kills</button>
+    <button id="toggleAutoKillBtn">Toggle Auto-Kill</button>
+    <div id="results"></div>
+    <div id="stats"></div>
+    <div id="lootValue"></div>
+    <div id="dropHistory"></div>
+
+    <script>
+        const mainDrops = [
+            { name: "Reinforced dragon bones", rarity: "Common", quantity: "10-55", value: 1000 },
+            { name: "Black stone arrow tips", rarity: "Common", quantity: "10-250", value: 200 },
+            { name: "Black stone heart", rarity: "Uncommon", quantity: "1-20", value: 50000 },
+            { name: "Eldritch crossbow stock", rarity: "EldritchPiece", quantity: "1", value: 500000000 },
+            { name: "Eldritch crossbow limb", rarity: "EldritchPiece", quantity: "1", value: 500000000 },
+            { name: "Eldritch crossbow mechanism", rarity: "EldritchPiece", quantity: "1", value: 500000000 },
+            { name: "Umbral urn", rarity: "VeryRare", quantity: "1", value: 1000000000 }
+        ];
+
+        const secondaryDrops = [
+            { name: "Crystal triskelion", rarity: "Uncommon", quantity: "1", value: 100000 },
+            { name: "Onyx dust", rarity: "Common", quantity: "5-199", value: 5000 },
+            { name: "Uncut onyx", rarity: "Uncommon", quantity: "1", value: 1000000 },
+            { name: "Onyx bolt tips", rarity: "Common", quantity: "53-112", value: 10000 },
+            { name: "Hydrix bolt tips", rarity: "Uncommon", quantity: "56-115", value: 20000 },
+            { name: "Ghostly essence", rarity: "Common", quantity: "31-90", value: 1000 },
+            { name: "Huge blunt rune salvage", rarity: "Common", quantity: "12-98", value: 40000 },
+            { name: "Black dragonhide", rarity: "Common", quantity: "19-299", value: 2000 },
+            { name: "Battlestaff", rarity: "Common", quantity: "105-199", value: 8000 },
+            { name: "Crystal key", rarity: "Uncommon", quantity: "55-134", value: 15000 },
+            { name: "Sirenic scale", rarity: "Rare", quantity: "3-28", value: 300000 }
+        ];
+
+        function getRandomDrop(drops, isCommon) {
+            const roll = Math.random();
+            if (isCommon) {
+                return drops[Math.floor(Math.random() * drops.length)];
+            } else {
+                if (roll < 1/55.6) {
+                    const eldritchPieces = drops.filter(d => d.rarity === "EldritchPiece");
+                    return eldritchPieces[Math.floor(Math.random() * eldritchPieces.length)];
+                }
+                if (roll < 1/55.6 + 1/300) return drops.find(d => d.rarity === "VeryRare");
+                if (roll < 1/55.6 + 1/300 + 0.2) return drops.find(d => d.rarity === "Common");
+                if (roll < 1/55.6 + 1/300 + 0.2 + 0.06667) return drops.find(d => d.rarity === "Uncommon");
+                return drops.find(d => d.rarity === "Common");
+            }
+        }
+
+        function getRandomQuantity(quantityRange) {
+            if (quantityRange === "1") return 1;
+            const [min, max] = quantityRange.split('-').map(Number);
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        function simulateDrop(drops, isCommon) {
+            const drop = getRandomDrop(drops, isCommon);
+            let quantity = getRandomQuantity(drop.quantity);
+            const isDoubled = Math.random() < 0.2;
+            if (isDoubled) quantity *= 2;
+            return { ...drop, quantity, isDoubled };
+        }
+
+        let killCount = 0;
+        let totalLootValue = 0;
+        let rareDrops = { EldritchPiece: 0, VeryRare: 0 };
+        let isAutoKilling = false;
+        let autoKillInterval;
+
+        function simulateKill() {
+            killCount++;
+            const mainDrop = simulateDrop(mainDrops, false);
+            const secondaryDrop = simulateDrop(secondaryDrops, true);
+            
+            totalLootValue += mainDrop.value * mainDrop.quantity;
+            totalLootValue += secondaryDrop.value * secondaryDrop.quantity;
+
+            if (mainDrop.rarity === "EldritchPiece") rareDrops.EldritchPiece++;
+            if (mainDrop.rarity === "VeryRare") rareDrops.VeryRare++;
+
+            updateDropHistory(mainDrop, secondaryDrop);
+            return { mainDrop, secondaryDrop };
+        }
+
+        function updateDropHistory(mainDrop, secondaryDrop) {
+            const historyDiv = document.getElementById('dropHistory');
+            const newEntry = document.createElement('div');
+            newEntry.innerHTML = `Kill #${killCount}: ${mainDrop.name} x${mainDrop.quantity}, ${secondaryDrop.name} x${secondaryDrop.quantity}`;
+            if (mainDrop.rarity === "EldritchPiece" || mainDrop.rarity === "VeryRare") {
+                newEntry.classList.add('rare');
+            }
+            historyDiv.prepend(newEntry);
+            if (historyDiv.children.length > 50) historyDiv.lastChild.remove();
+        }
+
+        function updateStats() {
+            const statsDiv = document.getElementById('stats');
+            statsDiv.innerHTML = `
+                <h3>Statistics</h3>
+                <p>Total Kills: ${killCount}</p>
+                <p>Eldritch Pieces: ${rareDrops.EldritchPiece} (1 in ${Math.round(killCount / rareDrops.EldritchPiece || killCount)} kills)</p>
+                <p>Umbral Urns: ${rareDrops.VeryRare} (1 in ${Math.round(killCount / rareDrops.VeryRare || killCount)} kills)</p>
+            `;
+            document.getElementById('lootValue').innerHTML = `Total Loot Value: ${totalLootValue.toLocaleString()} coins`;
+        }
+
+        document.getElementById('simulateBtn').addEventListener('click', function() {
+            const { mainDrop, secondaryDrop } = simulateKill();
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `
+                <h2>Kill #${killCount}</h2>
+                <h3>Main Drop:</h3>
+                <p>${mainDrop.name} x${mainDrop.quantity}${mainDrop.isDoubled ? ' <span class="doubled">(Doubled!)</span>' : ''}</p>
+                <h3>Secondary Drop:</h3>
+                <p>${secondaryDrop.name} x${secondaryDrop.quantity}${secondaryDrop.isDoubled ? ' <span class="doubled">(Doubled!)</span>' : ''}</p>
+            `;
+            updateStats();
+        });
+
+        document.getElementById('simulateMultipleBtn').addEventListener('click', function() {
+            for (let i = 0; i < 1000; i++) {
+                simulateKill();
+            }
+            updateStats();
+        });
+
+        document.getElementById('toggleAutoKillBtn').addEventListener('click', function() {
+            isAutoKilling = !isAutoKilling;
+            this.textContent = isAutoKilling ? "Stop Auto-Kill" : "Start Auto-Kill";
+            if (isAutoKilling) {
+                autoKillInterval = setInterval(() => {
+                    simulateKill();
+                    updateStats();
+                }, 100);
+            } else {
+                clearInterval(autoKillInterval);
+            }
+        });
+    </script>
+</body>
+</html>
